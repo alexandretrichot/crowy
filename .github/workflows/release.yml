@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: macos-26
+    env:
+      SCHEME: Crowy
+      PROJECT: Crowy.xcodeproj
+      CONFIG: Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app/Contents/Developer
+
+      - name: Resolve version from tag
+        id: ver
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build (Release, ad-hoc signed)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme  "$SCHEME" \
+            -configuration "$CONFIG" \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build \
+            MARKETING_VERSION="${{ steps.ver.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Locate built .app
+        id: app
+        run: |
+          APP_PATH="$(find build/Build/Products/$CONFIG -maxdepth 2 -name "$SCHEME.app" -type d | head -1)"
+          test -d "$APP_PATH"
+          echo "path=$APP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Ad-hoc sign (deep)
+        run: |
+          codesign --force --deep --sign - "${{ steps.app.outputs.path }}"
+          codesign --verify --deep --strict --verbose=2 "${{ steps.app.outputs.path }}"
+
+      - name: Package ZIP
+        id: zip
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ZIP_NAME="${SCHEME}-${{ steps.ver.outputs.version }}.zip"
+          /usr/bin/ditto -c -k --sequesterRsrc --keepParent \
+            "${{ steps.app.outputs.path }}" "dist/$ZIP_NAME"
+          SHA="$(shasum -a 256 "dist/$ZIP_NAME" | awk '{print $1}')"
+          echo "name=$ZIP_NAME"     >> "$GITHUB_OUTPUT"
+          echo "path=dist/$ZIP_NAME">> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA"        >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          generate_release_notes: true
+          files: ${{ steps.zip.outputs.path }}
+          body: |
+            ## Install via Homebrew
+
+            ```sh
+            brew install --cask alexandretrichot/tap/crowy
+            ```
+
+            **SHA256** (`${{ steps.zip.outputs.name }}`): `${{ steps.zip.outputs.sha256 }}`
+
+      - name: Update Homebrew tap cask
+        if: ${{ env.TAP_PUSH_TOKEN != '' }}
+        env:
+          TAP_PUSH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
+          TAP_REPO: alexandretrichot/homebrew-tap
+          OWNER_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          ZIP_NAME: ${{ steps.zip.outputs.name }}
+          SHA256: ${{ steps.zip.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git clone "https://x-access-token:${TAP_PUSH_TOKEN}@github.com/${TAP_REPO}.git" tap
+          mkdir -p tap/Casks
+
+          cat > tap/Casks/crowy.rb <<EOF
+          cask "crowy" do
+            version "${VERSION}"
+            sha256  "${SHA256}"
+
+            url "https://github.com/${OWNER_REPO}/releases/download/${TAG}/${ZIP_NAME}"
+            name "Crowy"
+            desc "Clipboard manager for macOS"
+            homepage "https://github.com/${OWNER_REPO}"
+
+            depends_on macos: ">= :tahoe"
+
+            app "Crowy.app"
+
+            postflight do
+              system_command "/usr/bin/xattr",
+                             args: ["-dr", "com.apple.quarantine", "#{appdir}/Crowy.app"],
+                             sudo: false
+            end
+
+            zap trash: [
+              "~/Library/Preferences/fr.alexandretrichot.Crowy.plist",
+              "~/Library/Application Support/fr.alexandretrichot.Crowy",
+              "~/Library/Caches/fr.alexandretrichot.Crowy",
+            ]
+          end
+          EOF
+
+          cd tap
+          git add Casks/crowy.rb
+          if git diff --cached --quiet; then
+            echo "No changes to cask, skipping."
+            exit 0
+          fi
+          git commit -m "crowy ${VERSION}"
+          git push origin HEAD

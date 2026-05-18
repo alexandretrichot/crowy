@@ -1,0 +1,32 @@
+# System junk
+.DS_Store
+
+# Xcode
+buildServer.json
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.pins
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project-local
+bin/
+screenshots/
