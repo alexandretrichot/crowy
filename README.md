@@ -2,6 +2,8 @@
 
 **A free, open-source clipboard manager for macOS — a credible alternative to the best paid apps in the category.**
 
+![Crowy](assets/hero.png)
+
 Crowy is designed to feel native: no Dock icon, no menu bar clutter. It runs quietly in the background and surfaces only when you summon it with a global shortcut — your clipboard history, instantly searchable, instantly pasteable.
 
 ## Features
