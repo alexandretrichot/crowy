@@ -4,8 +4,6 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
-    // Exposed so `CrowyApp` can inject them into the SwiftUI Window scenes.
-    // Both `@Observable`; bindings flow back automatically.
     let preferences = Preferences()
     let permissions = PermissionsManager()
 
@@ -20,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let iconProvider = AppIconProvider()
     private let linkPreviewProvider = LinkPreviewProvider()
     private var panel: PastePanel?
+    private var onboardingPanel: AccessoryPanel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -104,17 +103,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.start()
         retentionJob.start()
 
-        // First launch only: if Accessibility is missing, show the onboarding window
-        // so the user knows what to do. Otherwise launch silently — the panel
+        // Onboarding stays in an NSPanel so it can show without a Dock icon.
+        // Settings is a SwiftUI `Window` scene for the native macOS 26 Liquid
+        // Glass chrome — its `openSettings` closure is wired by `PasteBarView`
+        // (the only place we can capture `@Environment(\.openWindow)`).
+        AppWindowBridge.shared.openOnboarding = { [weak self] in self?.showOnboarding() }
+
+        // First launch only: if Accessibility is missing, show the onboarding panel
+        // so the user knows what to do. Otherwise launch silently — the paste panel
         // appears on demand via the global hotkey or app reactivation.
-        //
-        // Deferred to the next runloop tick: SwiftUI needs to build the commands
-        // menu first (that's where AppWindowBridge.openOnboarding gets wired).
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            if !self.permissions.isAccessibilityGranted {
-                AppWindowBridge.shared.openOnboarding()
-            }
+        if !permissions.isAccessibilityGranted {
+            showOnboarding()
+        }
+
+        // Defensive: SwiftUI's stub WindowGroup can flip activation policy to
+        // .regular during its setup. Re-assert on the next runloop tick to keep
+        // the Dock icon hidden.
+        DispatchQueue.main.async {
+            NSApp.setActivationPolicy(.accessory)
         }
     }
 
@@ -132,7 +138,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
-    // MARK: - Hooks called by SwiftUI scenes
+    // MARK: - Onboarding panel
+
+    private func showOnboarding() {
+        if onboardingPanel == nil {
+            onboardingPanel = AccessoryPanel(
+                rootView: OnboardingView(
+                    permissions: permissions,
+                    onDismiss: { [weak self] in self?.onboardingPanel?.hide() }
+                ),
+                title: "Welcome to Crowy",
+                contentSize: NSSize(width: 460, height: 420),
+                resizable: false
+            )
+        }
+        onboardingPanel?.show()
+    }
+
+    // MARK: - Hooks called by the SwiftUI Settings scene
 
     /// Settings: hotkey changed → re-register the Carbon hotkey with the new binding.
     func handleHotkeyChange(_ binding: HotkeyBinding) {
@@ -140,9 +163,4 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.panel?.toggle()
         }
     }
-
-    /// Onboarding window closed (continue / red-X / auto-dismiss on grant).
-    /// No-op: the user discovers the panel via the global hotkey or by
-    /// reactivating the app — consistent with the launch behavior.
-    func completeOnboarding() {}
 }

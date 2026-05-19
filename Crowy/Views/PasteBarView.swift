@@ -19,6 +19,13 @@ struct PasteBarView: View {
     /// SwiftUI's `.onKeyPress(.delete)` is unreliable for Backspace; the panel routes it.
     let registerDeleteHandler: ((() -> Void)?) -> Void
 
+    // MARK: - Environment
+
+    /// Captured here so AppKit code (`AppWindowBridge.openSettings`) can open
+    /// the SwiftUI `Window` scene — there's no AppKit API to open a scene by ID,
+    /// you have to go through this environment value.
+    @Environment(\.openWindow) private var openWindow
+
     // MARK: - Focus hierarchy
 
     @FocusState private var rootFocused: Bool
@@ -124,6 +131,15 @@ struct PasteBarView: View {
             rootFocused = true
             ensureSelectionValid()
             registerDeleteHandler { deleteSelected() }
+
+            // Re-bind on every appearance — `openWindow` is captured at this
+            // point, so AppKit callers (Cmd+, in PastePanel, the gear button)
+            // can route through it. Idempotent.
+            AppWindowBridge.shared.openSettings = {
+                NSApp.setActivationPolicy(.regular)
+                NSApp.activate(ignoringOtherApps: true)
+                openWindow(id: WindowID.settings)
+            }
         }
         .onDisappear {
             registerDeleteHandler(nil)

@@ -76,11 +76,18 @@ final class PastePanel: NSPanel {
     var onDeleteOutsideTextEditing: (() -> Void)?
 
     override func keyDown(with event: NSEvent) {
+        let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
+
+        // Cmd+, → open Settings. Replaces the native menu shortcut that an
+        // `.accessory` app without a menu bar can't provide.
+        if event.charactersIgnoringModifiers == ",", mods == [.command] {
+            AppWindowBridge.shared.openSettings()
+            return
+        }
+
         let isDeleteKey = event.keyCode == 51 || event.keyCode == 117
-        let noMods = event.modifierFlags
-            .intersection([.command, .control, .option, .shift]).isEmpty
         let firstResponderIsText = (firstResponder is NSTextView)
-        if isDeleteKey, noMods, !firstResponderIsText,
+        if isDeleteKey, mods.isEmpty, !firstResponderIsText,
            let handler = onDeleteOutsideTextEditing {
             handler()
             return
