@@ -128,14 +128,6 @@ jobs:
               system_command "/usr/bin/xattr",
                              args: ["-dr", "com.apple.quarantine", "#{appdir}/Crowy.app"],
                              sudo: false
-
-              # Ad-hoc signing means every release gets a new cdhash, so TCC
-              # silently invalidates the prior Accessibility grant while leaving
-              # a stale (checked) entry in System Settings. Wipe it so the user
-              # sees a clean state and re-grants explicitly.
-              system_command "/usr/bin/tccutil",
-                             args: ["reset", "Accessibility", "fr.alexandretrichot.Crowy"],
-                             sudo: false
             end
 
             zap trash: [
