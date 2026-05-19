@@ -16,18 +16,49 @@ final class PermissionsManager {
         self.isAccessibilityGranted = AXIsProcessTrusted()
     }
 
-    /// Opens System Settings on the Accessibility pane. We deliberately don't
-    /// trigger the system prompt: it's one-shot (won't fire again if the user
-    /// dismissed or denied it once) and showing it alongside Settings just
-    /// stacks two competing UIs. Settings alone is reliable and re-tryable —
-    /// the app is already registered with TCC via `AXIsProcessTrusted()` in
-    /// `init`, so it appears in the list ready to toggle.
+    /// Resets the stale TCC entry, then triggers the system prompt — which is
+    /// the only reliable way to both *register* the app with TCC (so it shows
+    /// up in the Accessibility list) and present a UI. Plain
+    /// `AXIsProcessTrusted()` queries TCC but doesn't add the app to the list,
+    /// and a bare `NSWorkspace.open(Settings)` lands the user on an empty pane
+    /// with no Crowy entry to toggle.
+    ///
+    /// The reset is needed because ad-hoc signing means every build has a
+    /// different cdhash: TCC silently invalidates the prior grant while
+    /// leaving a stale checked entry in System Settings that no toggle can
+    /// fix. Wiping the entry first means the prompt fires fresh and the user
+    /// gets a clean grant flow. The prompt itself carries an "Open System
+    /// Settings" button — letting Apple's prompt drive the flow avoids
+    /// stacking two competing UIs.
+    ///
+    /// Only called when permission is currently missing (gated by the Grant
+    /// button visibility and `onAccessibilityMissing`), so a valid grant is
+    /// never wiped.
     func requestAccessibility() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
-            NSWorkspace.shared.open(url)
-        }
+        resetStaleTCCEntry()
+
+        let promptKey = "AXTrustedCheckOptionPrompt" as CFString
+        _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
 
         startPolling()
+    }
+
+    private func resetStaleTCCEntry() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        task.arguments = ["reset", "Accessibility", bundleID]
+        // Silence tccutil's stdout/stderr — its diagnostics aren't useful here
+        // and we don't want them in the app's console.
+        task.standardOutput = Pipe()
+        task.standardError = Pipe()
+        do {
+            try task.run()
+            task.waitUntilExit()
+        } catch {
+            // Non-fatal: if tccutil is missing or fails, Settings still works
+            // the long way (user manually toggles or removes and re-adds).
+        }
     }
 
     /// Re-checks immediately — call when the window comes back to front.

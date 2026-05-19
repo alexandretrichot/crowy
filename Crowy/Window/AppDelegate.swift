@@ -37,7 +37,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pasteService = PasteService(
             repository: repository,
             onWillPaste: { [weak self] in self?.panel?.hide(animated: true) },
-            onAccessibilityMissing: { [weak self] in self?.permissions.requestAccessibility() }
+            // Permission was granted at some point but is now gone (revoked, or
+            // ad-hoc cdhash changed across a brew upgrade). Bring the onboarding
+            // back so the user sees the lock state + Grant button in context,
+            // not a bare System Settings window with no explanation.
+            onAccessibilityMissing: { [weak self] in
+                self?.permissions.refresh()
+                self?.showOnboarding()
+            }
         )
 
         store = ClipboardStore(repository: repository, pasteService: pasteService)
