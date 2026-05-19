@@ -135,8 +135,11 @@ struct PasteBarView: View {
             // Re-bind on every appearance — `openWindow` is captured at this
             // point, so AppKit callers (Cmd+, in PastePanel, the gear button)
             // can route through it. Idempotent.
+            //
+            // `NSApp.activate` (without flipping activation policy to `.regular`)
+            // makes the app frontmost so the SwiftUI `Window` scene surfaces in
+            // front. Activation policy stays `.accessory` → no Dock icon.
             AppWindowBridge.shared.openSettings = {
-                NSApp.setActivationPolicy(.regular)
                 NSApp.activate(ignoringOtherApps: true)
                 openWindow(id: WindowID.settings)
             }

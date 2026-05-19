@@ -45,11 +45,5 @@ private struct SettingsHost: View {
             onHotkeyChange: onHotkeyChange,
             onQuit: onQuit
         )
-        // SwiftUI flips activation policy to .regular to surface the Settings
-        // window but never flips back. Restoring .accessory here is what hides
-        // the Dock icon as soon as the user closes Settings.
-        .onDisappear {
-            NSApp.setActivationPolicy(.accessory)
-        }
     }
 }
