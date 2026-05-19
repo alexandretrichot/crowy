@@ -2,45 +2,84 @@ import SwiftUI
 
 struct OnboardingView: View {
     @Bindable var permissions: PermissionsManager
+    let hotkey: HotkeyBinding
+    let onPermissionGranted: () -> Void
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             header
+            featureList
             permissionCard
             Spacer(minLength: 0)
             footer
         }
-        .padding(32)
-        .frame(width: 460, height: 420)
+        .padding(28)
+        .frame(width: 480, height: 560)
         .onChange(of: permissions.isAccessibilityGranted) { _, granted in
-            // Brief delay so the user sees the animated checkmark before dismissing.
-            if granted {
-                Task {
-                    try? await Task.sleep(for: .milliseconds(900))
-                    onDismiss()
-                }
-            }
+            // System Settings steals focus during the grant flow; pull the
+            // onboarding panel back so the user sees the green confirmation
+            // and can read what's next instead of hunting for the window.
+            if granted { onPermissionGranted() }
         }
     }
 
     // MARK: - Header
 
     private var header: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             Image(systemName: "doc.on.clipboard.fill")
-                .font(.system(size: 44, weight: .light))
+                .font(.system(size: 42, weight: .light))
                 .foregroundStyle(.tint)
                 .symbolRenderingMode(.hierarchical)
 
             Text("Welcome to Crowy")
                 .font(.system(size: 22, weight: .semibold))
 
-            Text("To paste from your history with **Enter**, Crowy needs Accessibility.\nWithout it, you can still browse your clips — paste-back won't work.")
+            Text("Your clipboard history, one shortcut away.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Feature list
+
+    private var featureList: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            featureRow(
+                icon: "menubar.rectangle",
+                title: "Lives in your menu bar",
+                detail: "No Dock icon — Crowy stays out of your way until you need it."
+            )
+            featureRow(
+                icon: "keyboard",
+                title: "Open with \(hotkey.displayString)",
+                detail: "Press the shortcut anywhere to browse what you've copied."
+            )
+            featureRow(
+                icon: "return",
+                title: "Paste with Enter",
+                detail: "Pick a clip and Crowy sends ⌘V to the focused app."
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func featureRow(icon: String, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(.tint)
+                .frame(width: 22, alignment: .center)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                Text(detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -54,9 +93,10 @@ struct OnboardingView: View {
                     .font(.system(size: 13, weight: .medium))
                 Text(permissions.isAccessibilityGranted
                      ? "Granted — paste-back is ready."
-                     : "Required to send ⌘V to other apps.")
+                     : "Lets Crowy send ⌘V to the focused app. Without it, you can still browse but Enter won't paste.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
 
@@ -96,17 +136,11 @@ struct OnboardingView: View {
     // MARK: - Footer
 
     private var footer: some View {
-        Group {
-            if permissions.isAccessibilityGranted {
-                Button("Continue") { onDismiss() }
-                    .controlSize(.large)
-                    .buttonStyle(.borderedProminent)
-            } else {
-                Button("Continue without paste-back") { onDismiss() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
+        Button(permissions.isAccessibilityGranted ? "Get started" : "Continue without paste-back") {
+            onDismiss()
         }
+        .controlSize(.large)
+        .buttonStyle(.borderedProminent)
+        .tint(permissions.isAccessibilityGranted ? .accentColor : .secondary)
     }
 }

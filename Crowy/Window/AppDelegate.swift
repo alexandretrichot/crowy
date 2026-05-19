@@ -145,10 +145,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onboardingPanel = AccessoryPanel(
                 rootView: OnboardingView(
                     permissions: permissions,
+                    hotkey: preferences.hotkey,
+                    onPermissionGranted: { [weak self] in self?.onboardingPanel?.show() },
                     onDismiss: { [weak self] in self?.onboardingPanel?.hide() }
                 ),
                 title: "Welcome to Crowy",
-                contentSize: NSSize(width: 460, height: 420),
+                contentSize: NSSize(width: 480, height: 560),
                 resizable: false
             )
         }
