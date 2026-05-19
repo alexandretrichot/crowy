@@ -47,9 +47,9 @@ struct OnboardingView: View {
     private var featureList: some View {
         VStack(alignment: .leading, spacing: 14) {
             featureRow(
-                icon: "menubar.rectangle",
-                title: "Lives in your menu bar",
-                detail: "No Dock icon — Crowy stays out of your way until you need it."
+                icon: "eye.slash",
+                title: "Stays out of your way",
+                detail: "No Dock icon, no menu bar item — Crowy is invisible until you call it."
             )
             featureRow(
                 icon: "keyboard",
@@ -59,7 +59,7 @@ struct OnboardingView: View {
             featureRow(
                 icon: "return",
                 title: "Paste with Enter",
-                detail: "Pick a clip and Crowy sends ⌘V to the focused app."
+                detail: "Pick a clip and Crowy sends ⌘V to the focused app. Settings live behind the ⚙︎ in the paste bar."
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
