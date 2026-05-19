@@ -16,13 +16,13 @@ final class PermissionsManager {
         self.isAccessibilityGranted = AXIsProcessTrusted()
     }
 
-    /// Triggers the system prompt and also opens System Settings on the right pane.
+    /// Opens System Settings on the Accessibility pane. We deliberately don't
+    /// trigger the system prompt: it's one-shot (won't fire again if the user
+    /// dismissed or denied it once) and showing it alongside Settings just
+    /// stacks two competing UIs. Settings alone is reliable and re-tryable —
+    /// the app is already registered with TCC via `AXIsProcessTrusted()` in
+    /// `init`, so it appears in the list ready to toggle.
     func requestAccessibility() {
-        // System prompt — fires once per process, only if the user never answered.
-        let promptKey = "AXTrustedCheckOptionPrompt" as CFString
-        _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
-
-        // Also open Settings: the prompt can be missed if the app is in background.
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
