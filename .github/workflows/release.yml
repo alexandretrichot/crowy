@@ -7,6 +7,10 @@ on:
 
 permissions:
   contents: write
+  # Required by actions/attest-build-provenance: OIDC token for Sigstore
+  # signing, and the ability to publish the attestation to the repo.
+  id-token: write
+  attestations: write
 
 jobs:
   build:
@@ -75,6 +79,11 @@ jobs:
           echo "name=$ZIP_NAME"     >> "$GITHUB_OUTPUT"
           echo "path=dist/$ZIP_NAME">> "$GITHUB_OUTPUT"
           echo "sha256=$SHA"        >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.zip.outputs.path }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
